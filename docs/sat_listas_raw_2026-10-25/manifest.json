@@ -1,0 +1,134 @@
+{
+  "nota": "Bytes tal como los sirve el SAT, descargados el 2026-11-13. Solo se guardaron los archivos cuyo Content-MD5 coincide con el manifest del 2026-10-25, por lo que cada uno es el original exacto de su CSV convertido.",
+  "archivos": [
+    {
+      "archivo": "sat_69b_listado_completo.raw.csv",
+      "convertido": "csv/sat_69b_listado_completo.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Listado_completo_69-B.csv",
+      "content_md5": "b9hqTRFNeMmzlNvGgcxxAw==",
+      "sha256": "1c47cfec74e566f8ad949e17b1203b883d46ca81af97bc098c67a51cdabceb2b",
+      "bytes": 4856086
+    },
+    {
+      "archivo": "sat_69b_definitivos.raw.csv",
+      "convertido": "csv/sat_69b_definitivos.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Definitivos.csv",
+      "content_md5": "sataCie1Guszz7p/hTxf8Q==",
+      "sha256": "646fbfdb98d55e7a19bb21889896a335407734c6a4a2b2574bce2258b4abe219",
+      "bytes": 3890467
+    },
+    {
+      "archivo": "sat_69b_desvirtuados.raw.csv",
+      "convertido": "csv/sat_69b_desvirtuados.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Desvirtuados.csv",
+      "content_md5": "bCOY/ZFMGwrfB3yNtvtzzA==",
+      "sha256": "6826cfc7cf036dded1608284a83f33a9e0ec5fd6db78c4177cf40bb24d8c4152",
+      "bytes": 113206
+    },
+    {
+      "archivo": "sat_69b_presuntos.raw.csv",
+      "convertido": "csv/sat_69b_presuntos.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/Presuntos.csv",
+      "content_md5": "0dNTHo81vIL5ff4+ptDnVA==",
+      "sha256": "c78a6282f166dfdcdc7bd7ae1a71ad9b5579f376fccfd2aaf842fc4fdb52a5a0",
+      "bytes": 179303
+    },
+    {
+      "archivo": "sat_69b_sentencias_favorables.raw.csv",
+      "convertido": "csv/sat_69b_sentencias_favorables.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGAFF/SentenciasFavorables.csv",
+      "content_md5": "Z/LQmrZw1eK5EDMO7yM46A==",
+      "sha256": "e09e7250fdd251f4dd5d6b6aa5dceae9cd56c42d25300dbf24c153c4c00ce949",
+      "bytes": 733724
+    },
+    {
+      "archivo": "sat_69b_bis_listado_completo.raw.csv",
+      "convertido": "csv/sat_69b_bis_listado_completo.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Completo.csv",
+      "content_md5": "uTfI5E6o361voPMJbaIzFg==",
+      "sha256": "25a05c21161b4e09a4921b9cf70ee734e888a93a4f72d1676ac0b9c97a908d8a",
+      "bytes": 1391
+    },
+    {
+      "archivo": "sat_69b_bis_definitivos.raw.csv",
+      "convertido": "csv/sat_69b_bis_definitivos.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_Definitivo.csv",
+      "content_md5": "BDe3eK5mK+Y65Wvu76JVlA==",
+      "sha256": "8d2909ede208b565c8cb970a9b4b1b4f35ad540a4ff872438a13abfd435657f6",
+      "bytes": 784
+    },
+    {
+      "archivo": "sat_69b_bis_sentencias_favorables.raw.csv",
+      "convertido": "csv/sat_69b_bis_sentencias_favorables.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGGC/Listado_69_B_Bis_SentenciaFa.csv",
+      "content_md5": "qxXBOKleOCPJ1/vT17jYiQ==",
+      "sha256": "4c11c6699ada906faa3174413bc89120a18e44ef13ea7f6a8c89e1f8d673a0ff",
+      "bytes": 1185
+    },
+    {
+      "archivo": "sat_69_reduccion_multas_art74.raw.csv",
+      "convertido": "csv/sat_69_reduccion_multas_art74.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Documents_AGR/ReduccionArt74CFF.csv",
+      "content_md5": "dmyXO03Lq+cv10rNcU9aLQ==",
+      "sha256": "eec729933c4403378afaf11dfa615b0138009c8ed991b9dcbae1549f9b9ca883",
+      "bytes": 11366820
+    },
+    {
+      "archivo": "sat_69_condonados_art146b.raw.csv",
+      "convertido": "csv/sat_69_condonados_art146b.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Cifras_SAT/Indef/Condonadosart146BCFF.csv",
+      "content_md5": "JCjSg38/NZz7/6u1kVjiyQ==",
+      "sha256": "43c3d55eff39279c0485c72f41581ac4dda475d05cbd0bb4b4ca69932a130c3c",
+      "bytes": 1906
+    },
+    {
+      "archivo": "sat_69_reduccion_recargos_art21.raw.csv",
+      "convertido": "csv/sat_69_reduccion_recargos_art21.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Cifras_SAT/Indef/Condonadosart21CFF.csv",
+      "content_md5": "/EAh0Ac/bvcqL7vofqt2/Q==",
+      "sha256": "a1a4f4bec8df83409d6791ae27f0e6007508a3256e0d36f79ea2fe91bc0b2b3f",
+      "bytes": 611
+    },
+    {
+      "archivo": "sat_69_condonados_por_decreto.raw.csv",
+      "convertido": "csv/sat_69_condonados_por_decreto.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Cifras_SAT/Indef/CondonadosporDecreto.csv",
+      "content_md5": "cJrSHc+UjH90w6L9QIF30w==",
+      "sha256": "29531e5db3e9aec9ad47fca1b5066c9388f718c996fc688b403efa8a9dce32b4",
+      "bytes": 893
+    },
+    {
+      "archivo": "sat_69_condonados_2007_2015.raw.csv",
+      "convertido": "csv/sat_69_condonados_2007_2015.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Cifras_SAT/Indef/Condonados_07_15.csv",
+      "content_md5": "Lo0KU11N9yUk3eE1VXV8qw==",
+      "sha256": "23787bb1b4424c906620da26d8456c1eff51b95f127b2b40f516895386aca946",
+      "bytes": 2429665
+    },
+    {
+      "archivo": "sat_69_cancelados_art146a_2007_2015.raw.csv",
+      "convertido": "csv/sat_69_cancelados_art146a_2007_2015.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Cifras_SAT/Indef/Cancelados_07_15.csv",
+      "content_md5": "32OehinNuIH+1tEkBMRsqQ==",
+      "sha256": "200b4af07e45f5e32be7387df0f8358b055473d56992a1db4288524e6f930143",
+      "bytes": 5490589
+    },
+    {
+      "archivo": "sat_69_retorno_inversiones.raw.csv",
+      "convertido": "csv/sat_69_retorno_inversiones.csv",
+      "url_origen": "https://wu1agsprosta001.blob.core.windows.net/agsc-publicaciones/Datos_abiertos/Cifras_SAT/Indef/Retornoinversiones.csv",
+      "content_md5": "IjnICeVRwHhUZx9VXvF4jg==",
+      "sha256": "486ac1bc08f57568c403353cc2156575ef3946f9b20303ccdcb77fcb4e71238e",
+      "bytes": 7882
+    }
+  ],
+  "omitidos_por_haber_cambiado": [
+    "sat_69_no_localizados.csv",
+    "sat_69_exigibles.csv",
+    "sat_69_firmes.csv",
+    "sat_69_cancelados.csv",
+    "sat_69_sentencias.csv",
+    "sat_69_csd_sin_efectos.csv",
+    "sat_69_entes_publicos_omisos.csv"
+  ]
+}
