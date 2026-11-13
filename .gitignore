@@ -1,0 +1,8 @@
+# macOS folder settings
+.DS_Store
+
+# SAT list data: large, re-downloadable from the addresses in each manifest.json.
+# The manifests stay tracked.
+docs/sat_listas_utf8_*/csv/
+docs/sat_listas_utf8_*.zip
+docs/sat_listas_raw_*/*.raw.csv
