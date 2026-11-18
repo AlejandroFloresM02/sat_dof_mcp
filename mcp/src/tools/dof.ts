@@ -121,38 +121,98 @@ async function guarded<R>(tool: string, run: () => Promise<R>): Promise<R> {
   }
 }
 
-export function registerDofTools(server: McpServer, ctx: DofContext): void {
-  const EstadoOutput = z.object({
-    hoy_cdmx: z.string().describe("Today's date in Mexico City"),
-    ultima_edicion: z.object({
-      fecha: z.string().describe("Date of the most recent published edition"),
-      ediciones: z.array(
-        z.object({
-          edicion: z.enum(["MAT", "VES", "EXT"]).describe("MAT matutina (morning), VES vespertina (evening), EXT extraordinaria (special)"),
-          cod_diario: z.number().int(),
-          paginas: z.number().int().optional(),
-          secciones: z.array(z.string()),
-        }),
-      ),
-      dias_revisados: z.number().int().describe("Days checked going back, counting today, until an edition was found"),
-    }),
-    indicadores: z.array(
+export const EstadoOutput = z.object({
+  hoy_cdmx: z.string().describe("Today's date in Mexico City"),
+  ultima_edicion: z.object({
+    fecha: z.string().describe("Date of the most recent published edition"),
+    ediciones: z.array(
       z.object({
-        codigo: z.number().int(),
-        indicador: z.string(),
-        nombre: z.string(),
-        unidad: z.string(),
-        fecha_mas_reciente: z.string().describe("Latest date, today or earlier, with a published value"),
-        valor: z.number().nullable(),
-        valor_original: z.string(),
-        publicado_hasta: z.string().optional().describe("Latest future date already published, if the indicator is published ahead of time"),
+        edicion: z.enum(["MAT", "VES", "EXT"]).describe("MAT matutina (morning), VES vespertina (evening), EXT extraordinaria (special)"),
+        cod_diario: z.number().int(),
+        paginas: z.number().int().optional(),
+        secciones: z.array(z.string()),
       }),
     ),
-    indicadores_sin_valores_recientes: z.array(z.string()).describe("Indicators the DOF stopped publishing"),
-    nota: z.string(),
-    ...Common,
-  });
+    dias_revisados: z.number().int().describe("Days checked going back, counting today, until an edition was found"),
+  }),
+  indicadores: z.array(
+    z.object({
+      codigo: z.number().int(),
+      indicador: z.string(),
+      nombre: z.string(),
+      unidad: z.string(),
+      fecha_mas_reciente: z.string().describe("Latest date, today or earlier, with a published value"),
+      valor: z.number().nullable(),
+      valor_original: z.string(),
+      publicado_hasta: z.string().optional().describe("Latest future date already published, if the indicator is published ahead of time"),
+    }),
+  ),
+  indicadores_sin_valores_recientes: z.array(z.string()).describe("Indicators the DOF stopped publishing"),
+  nota: z.string(),
+  ...Common,
+});
 
+export const PublicacionesOutput = z.object({
+  fecha_desde: z.string(),
+  fecha_hasta: z.string(),
+  ...PageInfo,
+  publicaciones: z.array(
+    z.object({
+      cod_nota: z.number().int(),
+      titulo: z.string(),
+      fecha: z.string(),
+      edicion: z.enum(["MAT", "VES", "EXT"]),
+      cod_diario: z.number().int(),
+      pagina: z.number().int().optional(),
+      organismo: z.string().optional().describe("Issuing branch of government or body (poder u órgano emisor)"),
+      dependencia: z.string().optional().describe("Issuing agency (dependencia)"),
+      tipo: z.enum(["nota", "aviso"]).describe("aviso: judicial and general notices (avisos judiciales y generales)"),
+      url: z.string().describe("Public page of the note on dof.gob.mx"),
+    }),
+  ),
+  fechas_sin_edicion: z.array(z.string()).describe("Dates in the range for which the DOF has no notes"),
+  encabezados_omitidos: z.number().int().describe("Notes without a title (group headings) that are left out"),
+  ...Common,
+});
+
+export const BuscarOutput = z.object({
+  texto: z.string(),
+  ...PageInfo,
+  notas: z.array(
+    z.object({
+      cod_nota: z.number().int(),
+      titulo: z.string(),
+      fecha: z.string(),
+      cod_diario: z.number().int(),
+      organismo: z.string().optional(),
+      dependencia: z.string().optional(),
+      url: z.string(),
+    }),
+  ),
+  ...Common,
+});
+
+export const IndicadoresOutput = z.object({
+  modo: z.enum(["ultimo_valor", "fecha", "rango"]),
+  ...PageInfo,
+  valores: z.array(
+    z.object({
+      codigo: z.number().int(),
+      indicador: z.string().optional(),
+      nombre: z.string(),
+      unidad: z.string().optional(),
+      fecha: z.string(),
+      valor: z.number().nullable().describe("null if the DOF published text that is not a number; see valor_original"),
+      valor_original: z.string().describe("The value exactly as the DOF published it"),
+      duplicado: z.literal(true).optional().describe("The DOF has more than one value for this indicator and date"),
+      publicado_hasta: z.string().optional().describe("Latest future date already published"),
+    }),
+  ),
+  nota: z.string().optional(),
+  ...Common,
+});
+
+export function registerDofTools(server: McpServer, ctx: DofContext): void {
   server.registerTool(
     "dof_estado",
     {
@@ -181,29 +241,6 @@ Use it to answer "has today's DOF come out?", "what is the latest edition?" or "
         return { content: [{ type: "text", text: JSON.stringify(structuredContent) }], structuredContent };
       }),
   );
-
-  const PublicacionesOutput = z.object({
-    fecha_desde: z.string(),
-    fecha_hasta: z.string(),
-    ...PageInfo,
-    publicaciones: z.array(
-      z.object({
-        cod_nota: z.number().int(),
-        titulo: z.string(),
-        fecha: z.string(),
-        edicion: z.enum(["MAT", "VES", "EXT"]),
-        cod_diario: z.number().int(),
-        pagina: z.number().int().optional(),
-        organismo: z.string().optional().describe("Issuing branch of government or body (poder u órgano emisor)"),
-        dependencia: z.string().optional().describe("Issuing agency (dependencia)"),
-        tipo: z.enum(["nota", "aviso"]).describe("aviso: judicial and general notices (avisos judiciales y generales)"),
-        url: z.string().describe("Public page of the note on dof.gob.mx"),
-      }),
-    ),
-    fechas_sin_edicion: z.array(z.string()).describe("Dates in the range for which the DOF has no notes"),
-    encabezados_omitidos: z.number().int().describe("Notes without a title (group headings) that are left out"),
-    ...Common,
-  });
 
   server.registerTool(
     "dof_publicaciones",
@@ -276,23 +313,6 @@ To search titles across any year use dof_buscar_notas. To find the latest editio
       }),
   );
 
-  const BuscarOutput = z.object({
-    texto: z.string(),
-    ...PageInfo,
-    notas: z.array(
-      z.object({
-        cod_nota: z.number().int(),
-        titulo: z.string(),
-        fecha: z.string(),
-        cod_diario: z.number().int(),
-        organismo: z.string().optional(),
-        dependencia: z.string().optional(),
-        url: z.string(),
-      }),
-    ),
-    ...Common,
-  });
-
   server.registerTool(
     "dof_buscar_notas",
     {
@@ -335,26 +355,6 @@ To see everything published on a date use dof_publicaciones. This search uses a 
         );
       }),
   );
-
-  const IndicadoresOutput = z.object({
-    modo: z.enum(["ultimo_valor", "fecha", "rango"]),
-    ...PageInfo,
-    valores: z.array(
-      z.object({
-        codigo: z.number().int(),
-        indicador: z.string().optional(),
-        nombre: z.string(),
-        unidad: z.string().optional(),
-        fecha: z.string(),
-        valor: z.number().nullable().describe("null if the DOF published text that is not a number; see valor_original"),
-        valor_original: z.string().describe("The value exactly as the DOF published it"),
-        duplicado: z.literal(true).optional().describe("The DOF has more than one value for this indicator and date"),
-        publicado_hasta: z.string().optional().describe("Latest future date already published"),
-      }),
-    ),
-    nota: z.string().optional(),
-    ...Common,
-  });
 
   const indicatorList = INDICATORS.map((info) => `${info.key} (${info.code}, ${info.name})`).join("; ");
 

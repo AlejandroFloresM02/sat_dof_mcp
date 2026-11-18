@@ -6,8 +6,10 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import { CHARACTER_LIMIT, DISCLAIMER } from "../src/dof/constants.ts";
 import { DofContext } from "../src/dof/context.ts";
 import { addDays } from "../src/dof/dates.ts";
+import { IndicatorsResponse, type ListedNote, NotesByDateResponse, TitleSearchResponse } from "../src/dof/schemas.ts";
 import { createServer } from "../src/server.ts";
 import { alwaysFetch, clockAt, entry, fixtureFetch, json, scenario, type FixtureFetch } from "./helpers/fixtures.ts";
+import { defined, parseOutput, textOf, type ToolName, type ToolOutput } from "./helpers/narrow.ts";
 
 const TOOLS = ["dof_buscar_notas", "dof_estado", "dof_indicadores", "dof_publicaciones"];
 const lastDay = scenario.dias.length - 1;
@@ -40,23 +42,23 @@ afterEach(async () => {
   expect(fetch.missing).toEqual([]);
 });
 
-async function call(name: string, args: Record<string, unknown> = {}): Promise<any> {
+async function call<N extends ToolName>(name: N, args: Record<string, unknown> = {}): Promise<ToolOutput<N>> {
   const result = await client.callTool({ name, arguments: args });
   if (result.isError) throw new Error(`${name} failed: ${JSON.stringify(result.content)}`);
-  const text = (result.content as { type: string; text: string }[])[0]!.text;
+  const text = textOf(result);
   expect(JSON.parse(text)).toEqual(result.structuredContent);
   expect(text.length).toBeLessThanOrEqual(CHARACTER_LIMIT);
-  return result.structuredContent;
+  return parseOutput(name, result);
 }
 
 async function errorOf(name: string, args: Record<string, unknown>): Promise<string> {
   const result = await client.callTool({ name, arguments: args });
   expect(result.isError).toBe(true);
-  return (result.content as { type: string; text: string }[])[0]!.text;
+  return textOf(result);
 }
 
-async function titledNotes(): Promise<any[]> {
-  const raw = await json(`notas_hoy_menos_${lastDay}`);
+async function titledNotes(): Promise<ListedNote[]> {
+  const raw = NotesByDateResponse.parse(await json(`notas_hoy_menos_${lastDay}`));
   return [...raw.NotasMatutinas, ...raw.NotasVespertinas, ...raw.NotasExtraordinarias].filter((note) => note.titulo);
 }
 
@@ -81,7 +83,7 @@ describe("protocol", () => {
   });
 
   test("every response carries the source and the disclaimer", async () => {
-    const calls: [string, Record<string, unknown>][] = [
+    const calls: [ToolName, Record<string, unknown>][] = [
       ["dof_estado", {}],
       ["dof_publicaciones", {}],
       ["dof_buscar_notas", { texto: scenario.busqueda_texto, limit: scenario.busqueda_limite }],
@@ -122,7 +124,7 @@ describe("dof_publicaciones", () => {
     expect(output.fecha_hasta).toBe(scenario.ultima_edicion);
     expect(output.total_count).toBe(titled.length);
     expect(output.fechas_sin_edicion).toEqual([]);
-    expect(output.publicaciones.every((nota: any) => nota.url.includes(String(nota.cod_nota)))).toBe(true);
+    expect(output.publicaciones.every((nota) => nota.url.includes(String(nota.cod_nota)))).toBe(true);
   });
 
   test("paging visits every note exactly once", async () => {
@@ -130,8 +132,8 @@ describe("dof_publicaciones", () => {
     const seen: number[] = [];
     let offset: number | undefined = 0;
     while (offset !== undefined) {
-      const page: any = await call("dof_publicaciones", { limit: 7, offset });
-      seen.push(...page.publicaciones.map((nota: any) => nota.cod_nota));
+      const page: ToolOutput<"dof_publicaciones"> = await call("dof_publicaciones", { limit: 7, offset });
+      seen.push(...page.publicaciones.map((nota) => nota.cod_nota));
       expect(page.count).toBe(page.publicaciones.length);
       expect(page.has_more).toBe(page.next_offset !== undefined);
       offset = page.next_offset;
@@ -154,15 +156,18 @@ describe("dof_publicaciones", () => {
 
   test("filters narrow the list and ignore accents and case", async () => {
     const titled = await titledNotes();
-    const sample = titled.find((note) => typeof note.codOrgaDos === "string")!;
+    const sample = defined(
+      titled.find((note): note is ListedNote & { codOrgaDos: string } => typeof note.codOrgaDos === "string"),
+      "a titled note with an issuer",
+    );
     const byIssuer = await call("dof_publicaciones", { organismo: sample.codOrgaDos.toLowerCase(), limit: 200 });
     expect(byIssuer.total_count).toBe(titled.filter((note) => note.codOrgaDos === sample.codOrgaDos).length);
 
-    const word = (sample.titulo as string).split(/\s+/)[0]!;
+    const word = defined(sample.titulo?.split(/\s+/)[0], "a first word in the title of the sample");
     const byText = await call("dof_publicaciones", { texto: word.toUpperCase(), limit: 200 });
     expect(byText.total_count).toBeGreaterThan(0);
     expect(byText.total_count).toBeLessThanOrEqual(titled.length);
-    expect(byText.publicaciones.every((nota: any) => nota.titulo.toLowerCase().includes(word.toLowerCase()))).toBe(true);
+    expect(byText.publicaciones.every((nota) => nota.titulo.toLowerCase().includes(word.toLowerCase()))).toBe(true);
   });
 
   test("long results are shortened by returning fewer notes", async () => {
@@ -172,15 +177,15 @@ describe("dof_publicaciones", () => {
 
   test("a day too long for one response is returned in smaller pages, with nothing lost or cut", async () => {
     // The same day, repeated until it cannot fit: every copy of a note gets its own code.
-    const raw = await json(`notas_hoy_menos_${lastDay}`);
+    const raw = NotesByDateResponse.parse(await json(`notas_hoy_menos_${lastDay}`));
     const copies = 12;
     const big = {
       ...raw,
       NotasMatutinas: Array.from({ length: copies }, (_, copy) =>
-        raw.NotasMatutinas.map((note: any) => ({ ...note, codNota: note.codNota + copy * 1_000_000 })),
+        raw.NotasMatutinas.map((note) => ({ ...note, codNota: note.codNota + copy * 1_000_000 })),
       ).flat(),
     };
-    const expected = [...big.NotasMatutinas, ...big.NotasVespertinas].filter((note: any) => note.titulo).length;
+    const expected = [...big.NotasMatutinas, ...big.NotasVespertinas].filter((note) => note.titulo).length;
     expect(JSON.stringify(big).length).toBeGreaterThan(CHARACTER_LIMIT * 4);
 
     const dayUrl = entry(`notas_hoy_menos_${lastDay}`).url;
@@ -194,7 +199,7 @@ describe("dof_publicaciones", () => {
     let pages = 0;
     while (offset !== undefined) {
       // `call` already checks each response against the character limit.
-      const page: any = await call("dof_publicaciones", { limit: 200, offset });
+      const page: ToolOutput<"dof_publicaciones"> = await call("dof_publicaciones", { limit: 200, offset });
       expect(page.total_count).toBe(expected);
       expect(page.count).toBeLessThan(200);
       expect(page.next_offset).toBe(page.has_more ? offset + page.count : undefined);
@@ -219,13 +224,13 @@ describe("dof_publicaciones", () => {
 
 describe("dof_buscar_notas", () => {
   test("returns the page and the total the DOF reports", async () => {
-    const raw = await json("buscar_titulo");
+    const raw = TitleSearchResponse.parse(await json("buscar_titulo"));
     const output = await call("dof_buscar_notas", { texto: scenario.busqueda_texto, limit: scenario.busqueda_limite });
     expect(output.total_count).toBe(raw.totalRegistros);
-    expect(output.notas.map((nota: any) => nota.cod_nota)).toEqual(raw.Notas.map((note: any) => note.codNota));
+    expect(output.notas.map((nota) => nota.cod_nota)).toEqual(raw.Notas.map((note) => note.codNota));
     expect(output.has_more).toBe(raw.totalRegistros > raw.Notas.length);
     expect(output.next_offset).toBe(raw.Notas.length);
-    expect(output.notas.every((nota: any) => /^\d{4}-\d{2}-\d{2}$/.test(nota.fecha))).toBe(true);
+    expect(output.notas.every((nota) => /^\d{4}-\d{2}-\d{2}$/.test(nota.fecha))).toBe(true);
   });
 
   test("no matches is an empty result, not an error", async () => {
@@ -237,7 +242,7 @@ describe("dof_buscar_notas", () => {
 
   test("any offset works, although the DOF only pages by number", async () => {
     // A stand-in for the search route: it serves slices of one ordered list, as the DOF does.
-    const sample = (await json("buscar_titulo")).Notas[0];
+    const sample = defined(TitleSearchResponse.parse(await json("buscar_titulo")).Notas[0], "a found note in the fixture");
     const all = Array.from({ length: 10 }, (_, index) => ({ ...sample, codNota: sample.codNota + index }));
     const requested: string[] = [];
     const search = async (url: string) => {
@@ -249,7 +254,7 @@ describe("dof_buscar_notas", () => {
     };
     await close();
     await connect(new DofContext({ fetch: (url) => (url.includes("/buscarNotas/") ? search(url) : fetch(url)), now: clockAt(scenario.hoy) }));
-    const codes = (output: any) => output.notas.map((nota: any) => nota.cod_nota);
+    const codes = (output: ToolOutput<"dof_buscar_notas">) => output.notas.map((nota) => nota.cod_nota);
 
     const first = await call("dof_buscar_notas", { texto: scenario.busqueda_texto, limit: 4 });
     const shifted = await call("dof_buscar_notas", { texto: scenario.busqueda_texto, limit: 3, offset: 1 });
@@ -262,7 +267,7 @@ describe("dof_buscar_notas", () => {
     expect(last.next_offset).toBeUndefined();
 
     const oldest = await call("dof_buscar_notas", { texto: scenario.busqueda_texto, limit: 4, orden: "antiguas" });
-    expect(codes(oldest)).toEqual(codes(first).map((_: number, index: number) => all.toReversed()[index]!.codNota));
+    expect(codes(oldest)).toEqual(all.toReversed().slice(0, codes(first).length).map((note) => note.codNota));
     expect(requested.at(-1)).toEndWith("/fecha/asc");
   });
 
@@ -277,13 +282,13 @@ describe("dof_indicadores", () => {
     const output = await call("dof_indicadores");
     expect(output.modo).toBe("ultimo_valor");
     expect(output.valores.length).toBeGreaterThan(1);
-    expect(new Set(output.valores.map((valor: any) => valor.indicador)).size).toBe(output.valores.length);
-    expect(output.valores.every((valor: any) => valor.fecha <= scenario.hoy)).toBe(true);
+    expect(new Set(output.valores.map((valor) => valor.indicador)).size).toBe(output.valores.length);
+    expect(output.valores.every((valor) => valor.fecha <= scenario.hoy)).toBe(true);
   });
 
   test("one indicator can be asked by key or by code", async () => {
     const all = await call("dof_indicadores");
-    const sample = all.valores[0];
+    const sample = defined(all.valores[0], "a latest indicator value");
     const byKey = await call("dof_indicadores", { indicador: sample.indicador });
     const byCode = await call("dof_indicadores", { indicador: sample.codigo });
     expect(byKey.valores).toEqual([sample]);
@@ -291,15 +296,15 @@ describe("dof_indicadores", () => {
   });
 
   test("a date gives that day's values", async () => {
-    const raw = await json(`indicadores_hoy_menos_${lastDay}`);
+    const raw = IndicatorsResponse.parse(await json(`indicadores_hoy_menos_${lastDay}`));
     const output = await call("dof_indicadores", { fecha: scenario.ultima_edicion });
     expect(output.modo).toBe("fecha");
     expect(output.total_count).toBe(raw.ListaIndicadores.length);
-    expect(output.valores.every((valor: any) => valor.fecha === scenario.ultima_edicion && typeof valor.valor === "number")).toBe(true);
+    expect(output.valores.every((valor) => valor.fecha === scenario.ultima_edicion && typeof valor.valor === "number")).toBe(true);
   });
 
   test("a range gives the series in date order", async () => {
-    const raw = await json(`indicadores_rango_${scenario.indicador_adelantado}`);
+    const raw = IndicatorsResponse.parse(await json(`indicadores_rango_${scenario.indicador_adelantado}`));
     const output = await call("dof_indicadores", {
       indicador: scenario.indicador_adelantado,
       fecha_desde: scenario.indicadores_desde,
@@ -308,7 +313,7 @@ describe("dof_indicadores", () => {
     });
     expect(output.modo).toBe("rango");
     expect(output.total_count).toBe(raw.ListaIndicadores.length);
-    const dates = output.valores.map((valor: any) => valor.fecha);
+    const dates = output.valores.map((valor) => valor.fecha);
     expect(dates).toEqual(dates.toSorted());
   });
 

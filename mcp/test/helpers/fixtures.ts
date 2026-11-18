@@ -19,7 +19,7 @@ export function body(caso: string): Promise<string> {
   return Bun.file(join(FIXTURE_DIR, entry(caso).archivo)).text();
 }
 
-export async function json(caso: string): Promise<any> {
+export async function json(caso: string): Promise<unknown> {
   return JSON.parse(await body(caso));
 }
 

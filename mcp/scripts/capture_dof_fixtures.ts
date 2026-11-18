@@ -12,6 +12,7 @@
  */
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
+import * as z from "zod/v4";
 import {
   DOF_BASE_URL,
   INDICATOR_LOOKAHEAD_DAYS,
@@ -20,6 +21,7 @@ import {
 } from "../src/dof/constants.ts";
 import { addDays, eachDate, isoToDof, todayInMexicoCity, type IsoDate } from "../src/dof/dates.ts";
 import { INDICATORS } from "../src/dof/indicators.ts";
+import { IndicatorCatalogResponse, IndicatorRow, ListedNote, TitleSearchResponse } from "../src/dof/schemas.ts";
 
 const OUT_DIR = join(import.meta.dir, "..", "test", "fixtures", "dof");
 
@@ -47,7 +49,20 @@ interface Fetched {
   contentType: string | null;
   bytes: Uint8Array;
   ms: number;
-  json: any;
+  json: unknown;
+}
+
+/** Only what this script reads: a body the DOF has changed elsewhere is still captured, and the schema tests report the change. */
+const ListedNotes = z.array(ListedNote.pick({ codNota: true, titulo: true, tipoNota: true }));
+const NotesBody = z.object({ NotasMatutinas: ListedNotes, NotasVespertinas: ListedNotes, NotasExtraordinarias: ListedNotes });
+const RangeBody = z.object({ ListaIndicadores: z.array(IndicatorRow.pick({ fecha: true })) });
+const CatalogBody = IndicatorCatalogResponse.pick({ lista: true });
+const SearchBody = TitleSearchResponse.pick({ totalRegistros: true });
+const JsonObject = z.record(z.string(), z.unknown());
+
+function read<T>(schema: z.ZodType<T>, fetched: Fetched | undefined): T | undefined {
+  const parsed = schema.safeParse(fetched?.json);
+  return parsed.success ? parsed.data : undefined;
 }
 
 const entries: ManifestEntry[] = [];
@@ -57,7 +72,7 @@ async function get(path: string, timeoutMs: number = TIMEOUT_MS.default): Promis
   const started = Date.now();
   const response = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
   const bytes = new Uint8Array(await response.arrayBuffer());
-  let json: any;
+  let json: unknown;
   try {
     json = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
@@ -118,12 +133,12 @@ for (const [back, date] of scenarioDays.entries()) {
   await capture(`notas_hoy_menos_${back}`, `Notes of ${date}, ${back} days before the scenario's today`, `/notas/${isoToDof(date)}`);
 }
 const editionDof = isoToDof(latestEdition);
-const notes = (await get(`/notas/${editionDof}`)).json;
-const listed: any[] = [...notes.NotasMatutinas, ...notes.NotasVespertinas, ...notes.NotasExtraordinarias];
+const notes = read(NotesBody, await get(`/notas/${editionDof}`)) ?? fail(`${latestEdition} did not answer with its lists of notes`);
+const listed = [...notes.NotasMatutinas, ...notes.NotasVespertinas, ...notes.NotasExtraordinarias];
 if (listed.length === 0) fail(`${latestEdition} has an edition but no notes`);
 
 const editionKeys: Record<string, string> = { Matutina: "MAT", Vespertina: "VES", Extraordinaria: "EXT" };
-const editionsBody = scanned.get(latestEdition)?.json ?? {};
+const editionsBody = read(JsonObject, scanned.get(latestEdition)) ?? {};
 const presentCode = Object.entries(editionKeys).find(([key]) => Array.isArray(editionsBody[key]))?.[1];
 if (presentCode === undefined) fail(`${latestEdition} answered 200 without any edition`);
 await capture("diario_edicion", "One edition by date and type", `/diarios/obtieneDiario/${editionDof}/${presentCode}`);
@@ -146,7 +161,8 @@ let foundSections = false;
 for (let back = 0; back < LEGACY_SCAN_DAYS && !foundSections; back++) {
   const date = addDays(`${Number(year) - LEGACY_YEARS_BACK}-${month}-${day}`, -back);
   const fetched = await get(`/diarios/porFecha/${isoToDof(date)}`);
-  const sections = Object.keys(editionKeys).map((key) => fetched.json?.[key]).filter(Array.isArray);
+  const body = read(JsonObject, fetched) ?? {};
+  const sections = Object.keys(editionKeys).map((key) => body[key]).filter(Array.isArray);
   if (sections.some((list) => list.length > 1)) {
     await save("diarios_fecha_secciones", `${date}: one element per section of the same edition`, fetched);
     foundSections = true;
@@ -180,7 +196,7 @@ for (const [back, date] of scenarioDays.entries()) {
 }
 const rangeFrom = isoToDof(addDays(scenarioToday, -INDICATOR_LOOKBACK_DAYS));
 const rangeTo = isoToDof(addDays(scenarioToday, INDICATOR_LOOKAHEAD_DAYS));
-const catalogCodes: number[] = (catalog.json?.lista ?? []).map((row: any) => Number(row.id));
+const catalogCodes: number[] = (read(CatalogBody, catalog)?.lista ?? []).map((row) => Number(row.id));
 const codes = [...new Set([...INDICATORS.map((indicator) => indicator.code), ...catalogCodes])].sort((a, b) => a - b);
 /** The indicator whose values reach furthest past the scenario's today: one the DOF publishes ahead. */
 let aheadCode: number | undefined;
@@ -192,7 +208,7 @@ for (const code of codes) {
     `/indicadores/${code}/${rangeFrom}/${rangeTo}`,
     TIMEOUT_MS.indicatorRange,
   );
-  const dates: string[] = (range.json?.ListaIndicadores ?? []).map((row: any) => row.fecha.split("-").reverse().join("-"));
+  const dates: string[] = (read(RangeBody, range)?.ListaIndicadores ?? []).map((row) => row.fecha.split("-").reverse().join("-"));
   const last = dates.toSorted().at(-1);
   if (last !== undefined && last > furthest) [aheadCode, furthest] = [code, last];
 }
@@ -215,7 +231,7 @@ const search = await capture(
   `/buscarNotas/titulo/${encodeURIComponent(searchText)}/1/${SEARCH_SIZE}/fecha/desc`,
   TIMEOUT_MS.noteDetail,
 );
-const pagePastEnd = Math.ceil((search.json?.totalRegistros ?? 0) / SEARCH_SIZE) + 10;
+const pagePastEnd = Math.ceil((read(SearchBody, search)?.totalRegistros ?? 0) / SEARCH_SIZE) + 10;
 await capture(
   "buscar_titulo_pagina_fuera",
   "Page past the end",

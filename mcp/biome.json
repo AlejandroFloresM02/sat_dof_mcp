@@ -22,23 +22,5 @@
     "rules": {
       "preset": "recommended"
     }
-  },
-  "overrides": [
-    {
-      "includes": [
-        "test/**",
-        "scripts/**"
-      ],
-      "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off"
-          },
-          "style": {
-            "noNonNullAssertion": "off"
-          }
-        }
-      }
-    }
-  ]
+  }
 }
