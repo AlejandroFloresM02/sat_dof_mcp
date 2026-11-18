@@ -2,10 +2,11 @@
 set -e
 
 if ! command -v bun >/dev/null 2>&1; then
-  echo "pre-commit: bun is not on PATH, so the type check and tests cannot run." >&2
+  echo "pre-commit: bun is not on PATH, so the lint, type check and tests cannot run." >&2
   exit 1
 fi
 
 cd "$(git rev-parse --show-toplevel)/mcp"
+bun run lint
 bun run typecheck
 bun test

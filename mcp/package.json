@@ -12,11 +12,13 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "start": "bun run src/index.ts",
     "test": "bun test",
+    "lint": "biome lint --error-on-warnings",
     "typecheck": "bun check",
     "capture:dof": "bun run scripts/capture_dof_fixtures.ts",
     "smoke:dof": "bun run scripts/smoke_dof.ts"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
     "@modelcontextprotocol/client": "^2.4.0",
     "@types/bun": "^1.4.4"
   },
