@@ -4,6 +4,7 @@ import { MAX_CONCURRENT_REQUESTS } from "../src/dof/constants.ts";
 import { Freshness } from "../src/dof/freshness.ts";
 import { addDays } from "../src/dof/dates.ts";
 import { alwaysFetch, clockAt, entry, fixtureFetch, scenario } from "./helpers/fixtures.ts";
+import { defined } from "./helpers/narrow.ts";
 
 async function kindOf(promise: Promise<unknown>): Promise<DofErrorKind | "resolved"> {
   try {
@@ -120,7 +121,7 @@ describe("requests", () => {
       return alwaysFetch("buscar_titulo_sin_resultados")(url);
     };
     await new DofClient({ fetch }).searchTitles("a/b\\c;d%e ?#", 1, 5, "desc");
-    const path = new URL(calls[0]!).pathname;
+    const path = new URL(defined(calls[0], "a request to the DOF")).pathname;
     expect(path.split("/").filter((part) => part !== "")).toHaveLength(9);
     expect(path).not.toContain(";");
   });

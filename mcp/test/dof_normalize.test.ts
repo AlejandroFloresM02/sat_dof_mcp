@@ -10,6 +10,7 @@ import {
 } from "../src/dof/normalize.ts";
 import { EditionsByDateResponse, IndicatorsResponse, NotesByDateResponse } from "../src/dof/schemas.ts";
 import { json, scenario } from "./helpers/fixtures.ts";
+import { defined } from "./helpers/narrow.ts";
 
 const lastDay = scenario.dias.length - 1;
 
@@ -84,7 +85,7 @@ describe("indicator values", () => {
 
   test("two values for the same indicator and date are both kept and flagged", async () => {
     const raw = IndicatorsResponse.parse(await json(`indicadores_rango_${scenario.indicador_adelantado}`));
-    const first = raw.ListaIndicadores[0]!;
+    const first = defined(raw.ListaIndicadores[0], "a row in the range");
     const values = normalizeIndicators([...raw.ListaIndicadores, { ...first, valor: `${first.valor}9` }]);
     expect(values).toHaveLength(raw.ListaIndicadores.length + 1);
     expect(values.filter((value) => value.duplicado)).toHaveLength(2);
@@ -92,7 +93,7 @@ describe("indicator values", () => {
 
   test("a code outside the reference table still comes through", async () => {
     const raw = IndicatorsResponse.parse(await json(`indicadores_rango_${scenario.indicador_adelantado}`));
-    const [value] = normalizeIndicators([{ ...raw.ListaIndicadores[0]!, codTipoIndicador: 1 }]);
+    const [value] = normalizeIndicators([{ ...defined(raw.ListaIndicadores[0], "a row in the range"), codTipoIndicador: 1 }]);
     expect(value?.indicador).toBeUndefined();
     expect(value?.nombre).toContain("1");
   });
