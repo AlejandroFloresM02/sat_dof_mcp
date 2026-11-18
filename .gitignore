@@ -1,8 +1,9 @@
 # macOS folder settings
 .DS_Store
 
-# SAT list data: large, re-downloadable from the addresses in each manifest.json.
-# The manifests stay tracked.
+# SAT list data: large, so kept out of git. The manifests stay tracked.
+# Not all of it can be downloaded again: the SAT has replaced some lists since
+# the snapshot, so the local files are the only copy. Do not delete them.
 docs/sat_listas_utf8_*/csv/
 docs/sat_listas_utf8_*.zip
 docs/sat_listas_raw_*/*.raw.csv

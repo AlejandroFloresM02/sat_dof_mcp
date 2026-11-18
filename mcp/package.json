@@ -3,11 +3,16 @@
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "packageManager": "bun@1.4.4",
+  "engines": {
+    "bun": ">=1.4.4"
+  },
   "scripts": {
+    "preinstall": "bun -e \"if (!Bun.semver.satisfies(Bun.version, '>=1.4.4')) { console.error('This project needs Bun 1.4.4 or later. Found ' + Bun.version + '.'); process.exit(1) }\"",
     "typecheck": "bun check"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "^1.4.4"
   },
   "peerDependencies": {
     "typescript": "^7"
