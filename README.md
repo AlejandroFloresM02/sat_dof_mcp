@@ -6,13 +6,13 @@ It is being built to test locally and then offer at a law firm. The aim is to se
 
 ## Status
 
-Design stage. `mcp/` holds a Bun and TypeScript scaffold with no server code yet.
+The MCP server in `mcp/` serves the DOF tools, which query the DOF live. The SAT list tools, their ingest and the plugin packaging are not built yet. The code is the reference for what is built; the documents below plan what is not.
 
 ## Documents
 
 | Document | What it answers |
 | --- | --- |
-| [docs/design_connector.md](docs/design_connector.md) | What gets built: architecture, deduplication, tools, tests, risks and open decisions |
+| [docs/design_connector.md](docs/design_connector.md) | What gets built next: architecture, deduplication, tools, tests, risks and open decisions |
 | [docs/sources.md](docs/sources.md) | What each source serves, how it behaves over HTTP and how often it changes |
 | [docs/data_relationships.md](docs/data_relationships.md) | What one row is in each source, and how the sources join |
 | [docs/glossary.md](docs/glossary.md) | The legal meaning of each list and term |
@@ -20,5 +20,7 @@ Design stage. `mcp/` holds a Bun and TypeScript scaffold with no server code yet
 ## Run
 
 ```bash
-cd mcp && bun install && bun run index.ts
+cd mcp && bun install && bun run start
 ```
+
+The server speaks MCP over stdio, so it waits for a client. The other commands are the scripts in `mcp/package.json`.

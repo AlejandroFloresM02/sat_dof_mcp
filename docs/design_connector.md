@@ -1,5 +1,7 @@
 # SAT/DOF MCP server: extraction and tool design
 
+This document plans what is not built yet. What is built is described by its code: so far the live DOF tools in `mcp/src/tools/dof.ts`.
+
 Companions: [sources.md](sources.md) (what each source serves and how it behaves), [data_relationships.md](data_relationships.md), [glossary.md](glossary.md)
 
 ## Summary
@@ -8,7 +10,7 @@ Everything the server needs can be fetched with plain HTTP requests. No browser,
 
 - **Delivery is a Claude plugin** that bundles this MCP server and runs it on the user's machine over stdio. A hosted server is a later option and is not decided (see the last section). The plugin's own structure is not designed yet.
 - **The "Excel" problem is two different things.** The 22 taxpayer lists are text CSV files that the server mislabels as Excel. The SAT statistics are real binary Excel files (89 of them), and Bun reads them directly. Both were parsed on 13 November with Bun and TypeScript, without a browser.
-- **The data groups into 8 topics**, which map to 14 tools: 9 in a first phase (lists, DOF notes, indicators, CFDI check) and 5 in a second (statistics, charities directory, CFDI catalogs).
+- **The data groups into 8 topics**, which map to 16 tools: 11 in a first phase (lists, DOF notes, indicators, CFDI check) and 5 in a second (statistics, charities directory, CFDI catalogs).
 - **The agent never receives duplicated data.** Deduplication runs when data is loaded, in six layers, and nothing is lost: a collapsed record keeps a count and its sources. The October files contain about 26,000 redundant rows and one list whose text is 65% repetition.
 - **Yearly change is handled by a source registry**: one declarative entry per dataset, with file addresses discovered from the SAT index pages instead of written into code. The probes of 13 November found three addresses that moved or carry a date.
 - **Main risk:** every probe ran from one developer machine. A cloud environment could not reach the SAT file storage on 25 October, and an office network could block it too, so reachability from the firm's machines must be tested before anything else.
@@ -111,11 +113,12 @@ flowchart LR
   B --> I
   C --> I
   S -->|live| D
+  S -->|live, DOF tools| C
   Claude --> S
 ```
 
 - **Ingest worker:** the only writer. Runs on a schedule and performs seven steps per dataset: discover, fetch, store raw, parse, validate, deduplicate, load.
-- **MCP server:** read-only. Answers from SQLite in milliseconds and keeps working when SAT or DOF are down. Only the CFDI check goes out live.
+- **MCP server:** read-only. The list tools answer from SQLite in milliseconds and keep working when the SAT is down. Two things go out live: the CFDI check and, until the DOF ingest exists, the DOF tools.
 - **SQLite:** the data is small (the 22 lists are 80 MB raw), the design has one writer, and Bun has a built-in driver. Name search needs SQLite's full-text index (FTS5). It worked in Bun on macOS on 13 November; confirm it on the operating systems the firm uses.
 - **Transport:** stdio for the plugin. Streamable HTTP is added only if the server is hosted later; the tool code is the same.
 
@@ -194,7 +197,7 @@ Keys follow the measured natural keys in [data_relationships.md](data_relationsh
 
 ## Deduplication
 
-The agent must never receive the same record twice. Deduplication therefore runs in the ingest worker, and its result is what the database stores. Tools read records that are already deduplicated, so the same question always returns the same records. No tool is built before this layer exists.
+The agent must never receive the same record twice. Deduplication therefore runs in the ingest worker, and its result is what the database stores. Tools read records that are already deduplicated, so the same question always returns the same records. No list tool is built before this layer exists. The live DOF tools are outside it until the DOF ingest exists.
 
 ### Where duplication comes from
 
@@ -232,7 +235,7 @@ Two rows are duplicates only when identity and content are both equal. Equal ide
 3. **Taxpayer.** One `contribuyente` record per RFC. List records point to it. The 91 rows of 69-B with a suppressed RFC (`XXXXXXXXXXXX`) attach to no taxpayer, and their identity is the whole row without `No`: keying them on RFC and notice would wrongly merge them into 31 records. Only their exact copies collapse, leaving 65 records.
 4. **Cross-source event.** A stage publication is one event, identified by the list record and the stage. It stores both notice numbers, because the SAT and the DOF number of the same stage differ in about 2% of rows. A DOF note attaches to the event when its notice number equals either one and the RFC is the same, so the SAT file and the DOF note never produce two events for one publication. Inside a DOF note an RFC counts once, however many tables repeat it. An RFC printed in a note with no matching list record stays a separate record whose only source is the note.
 5. **Snapshot.** A record whose identity and content are unchanged is stored once, with `first_seen` and `last_seen`. A record whose content changed (a presumption that became definitive, a DOF date that was filled in) keeps its identity and gets a new version. `novedades_listas` reads exactly this: entered, left, changed.
-6. **Response.** Results are grouped by RFC, then by list. Notices and sources appear once in a `referencias` block and are referenced by id. Pages are ordered by identity, so no record repeats across pages. A batch of RFCs is deduplicated before lookup. `leer_nota_dof` returns each taxpayer table once as rows and removes the tables from the text it pages. Every response states how many source rows were collapsed.
+6. **Response.** Results are grouped by RFC, then by list. Notices and sources appear once in a `referencias` block and are referenced by id. Pages are ordered by identity, so no record repeats across pages. A batch of RFCs is deduplicated before lookup. `dof_leer_nota` returns each taxpayer table once as rows and removes the tables from the text it pages. Every response states how many source rows were collapsed.
 
 ### Lists without a key
 
@@ -249,9 +252,11 @@ Reducción de multas, Cancelados and Sentencias have no column that identifies a
 
 ## Tools
 
-Tools follow the shape of the question, not the shape of the files: one tool serves all 22 lists, and one serves every statistical series. Names and descriptions stay in Spanish because users will ask in Spanish.
+Tools follow the shape of the question, not the shape of the files: one tool serves all 22 lists, and one serves every statistical series. Names stay in Spanish; titles, descriptions and messages are in English, and the agent answers in the language of the user. The list tools will carry the prefix `sat_`, as the DOF tools carry `dof_`; the names below without a prefix are placeholders until then.
 
-### Phase 1 (9 tools)
+### Phase 1 (11 tools, 4 built)
+
+Built: `dof_estado`, `dof_publicaciones`, `dof_buscar_notas` and `dof_indicadores`, defined in `mcp/src/tools/dof.ts`. Still to build:
 
 | Tool | Input | Returns | Topic |
 | --- | --- | --- | --- |
@@ -260,9 +265,7 @@ Tools follow the shape of the question, not the shape of the files: one tool ser
 | `buscar_nombre` | Company or person name | Ranked approximate matches with RFC and list | 1 |
 | `revisar_proveedores` | List of RFCs (capped) | One consolidated result per RFC, over the same lists and DOF notices as `buscar_rfc` | 1, 2 |
 | `novedades_listas` | Date range, optional list | RFCs that entered, left or changed stage | 1 |
-| `publicaciones_dof` | Date range; optional issuing body, text, topic tag | Notes with code, title, issuing body and page | 2 |
-| `leer_nota_dof` | Note code, optional page | Clean text in pages, with each taxpayer table returned once as rows instead of inside the text | 2 |
-| `indicadores_dof` | Indicator and date or range | Values with dates | 3 |
+| `dof_leer_nota` | Note code, optional page | Clean text in pages, with each taxpayer table returned once as rows instead of inside the text | 2 |
 | `verificar_cfdi` | UUID, issuer RFC, receiver RFC, total | Status, cancellability, listed-issuer flag | 4 |
 
 ### Phase 2 (5 tools)
@@ -275,7 +278,7 @@ Tools follow the shape of the question, not the shape of the files: one tool ser
 | `buscar_donataria` | RFC, name or state | Directory rows | 6 |
 | `catalogo_cfdi` | Catalog name and code or text | Matching entries with validity dates | 7 |
 
-Regulations (topic 8) have no tool yet. `publicaciones_dof` with a topic tag finds the RMF notes, but the API gives no text for the main resolution, so reading it needs the document endpoint first.
+Regulations (topic 8) have no tool yet. `dof_buscar_notas` finds the RMF notes by title, but the API gives no text for the main resolution, so reading it needs the document endpoint first.
 
 ### Rules every tool follows
 
@@ -287,7 +290,7 @@ Regulations (topic 8) have no tool yet. `publicaciones_dof` with a topic tag fin
 - **No duplicates:** every record appears once per response, with shared notices and sources referenced by id (see Deduplication).
 - **Amounts and dates as the source means them:** an amount of 0 or blank is "not disclosed", not zero. Article 69 dates are quarterly batch dates, and responses label them as publication dates.
 - **No personal contact data:** the charities directory includes representatives' names, telephone numbers and e-mail addresses; `buscar_donataria` does not return them.
-- **Bounded output:** limits and pagination on every list result. A single DOF note can be 3 MB of HTML, so `leer_nota_dof` returns cleaned text in pages.
+- **Bounded output:** limits and pagination on every list result, with the contract the DOF tools already use (`PageInfo` and `fit` in `mcp/src/tools/dof.ts`). A single DOF note can be 3 MB of HTML, so `dof_leer_nota` returns cleaned text in pages.
 - **Honest negatives:** "not found in the lists as of this date" is different from "clean". Responses say which lists were searched and what they cannot contain (91 rows with a suppressed RFC, 1,146 incomplete RFCs in one historical file).
 - **Actionable errors:** an error states what to change in the input.
 - **Third-party text is data.** DOF note bodies are stripped to text and returned as quoted content, never as instructions.
@@ -357,10 +360,7 @@ Fixtures must be the bytes as downloaded. The CSV files already in `docs/` are c
 | Ingest ownership on a local machine | A stdio server is one process per Claude session, so several open sessions mean several writers on one SQLite file and several pollers. The design assumes one writer. A stdio server also does not run while Claude is closed, so an hourly check cannot hold | Decide between write-ahead logging plus a single-ingest lock, and ingest as a separate command. Refresh on start when the data is stale |
 | One database per machine | Each user's copy can hold a different snapshot and give a different answer. Polling also multiplies behind one office address, against a DOF API with no documented limits | Decide between a shared prebuilt snapshot and the hosted server |
 | stdio and stdout | A stdio server must never write to stdout; one `console.log` corrupts the protocol stream | Log with `console.error` only |
-| Tool names have no service prefix | Anthropic's MCP guide asks for `{service}_{action}_{resource}`, so names do not collide with other servers | Decide the prefix (for example `sat_buscar_rfc`, `dof_leer_nota`) before the first tool is written |
-| Pagination contract | "Limits and pagination" is stated but not specified | Specify `limit`, `has_more`, `next_offset` and `total_count`, a default of 20 to 50 items, and a cap of about 25,000 characters reached by returning fewer items, never by cutting text |
 | Output keys | Source column names carry accents and spaces, and list-specific fields sit in a free JSON column | Decide ASCII snake_case keys and one declared output shape per list family |
-| MCP SDK | None chosen. The guide's current one is `@modelcontextprotocol/server` (v2) with Zod 4; not tested under Bun | Test it under Bun, then pin it |
 | Evaluations | The design has 3 answer checks. The guide asks for 10 multi-step questions with stable answers | Write them against a pinned fixture database, because the live lists change |
 | `verificar_cfdi` | The only tool that reaches outside at query time; it sends the invoice's UUID, both RFCs and the total to the SAT. Never run against a real invoice | Say so in the tool description and mark it `openWorldHint: true`; test with a real invoice |
 | `omawww.sat.gob.mx` is plain HTTP and slow | Measured | Long timeouts, resumable downloads, own hash; treat content as unauthenticated |
@@ -368,21 +368,20 @@ Fixtures must be the bytes as downloaded. The CSV files already in `docs/` are c
 | Charities directory may be stale | The `.xls` was last modified on 25 August 2025 | Check whether the SAT publishes a newer directory elsewhere; report its date in every answer |
 | Yearly charity reports | 1 of 20 files sampled | Confirm the 36 columns are stable across years before writing the profile |
 | SheetJS version | Tested with 0.18.5 from npm. Newer releases may be distributed only from the vendor's own site; not checked | Confirm, then pin the version |
-| Indicator codes | Confirmed by equal values in the Banco de México notes of two dates: 158 dollar, 159 UDI, 163 cost of funds in dollars (monthly), 165/166/174 TIIE 28/91/182 days, 175 funding TIIE. No endpoint returns the names | Keep the mapping as registry data and re-check it when a new code appears |
-| RMF text | Not available as text in the DOF API for the main resolution and Anexo 1 | Test the DOF document endpoint and the SAT PDFs before promising topic 8 |
+| RMF text | Not available as text in the DOF API for the main resolution and Anexo 1. Note 5777217 (RMF 2026) has a 459-character body that links to `https://dof.gob.mx/2025/SHCP/SHCP_281225_01.pdf` | Test the DOF document endpoint and the SAT PDFs before promising topic 8 |
 | The SAT file and the DOF can differ | One RFC differs by a digit between note 5801999 and the SAT list | Both are kept as separate records, each with its source |
 | Statistics series semantics | Cumulative columns, changes of granularity and unflagged preliminary figures | Record granularity and cumulative flags per series in the registry |
-| DOF text encoding | Live responses decoded as UTF-8; one documentation sample did not | Validate encoding on every response |
+| DOF text encoding | Live responses decoded as UTF-8; one documentation sample did not | Validate encoding on every response. The live tools do not check it yet |
 | DOF notes without a title | 6–17% of a day's notes. They have no body either and appear to be group headings | Skip them; alert if a titleless note has a body |
 | Whether DOF notes change after publication | Unknown | The 3-day re-read will measure it |
 | Conditional requests on `omawww` | Not tested | Test `If-Modified-Since`; fall back to `HEAD` comparison |
-| Public DOF address to cite | `www.dof.gob.mx` failed certificate validation from `curl` | Decide which address tool responses should link to |
+| DOF tools depend on the DOF being up | The live tools have no local copy, and two of their routes (indicator names, title search) are undocumented | The ingest in step 3 of the build order removes the dependency. Until then the tools report the outage as an error |
 
 ## Proposed build order
 
 1. **Reachability test** from a firm machine (one script, five hosts).
 2. **Registry + ingest for the 22 lists**, with raw storage, the deduplication layer and the automatic parser checks. Only then `estado_fuentes`, `buscar_rfc`, `buscar_nombre`. Runs locally over stdio.
-3. **DOF ingest**, merged into the same events and notices as the lists, with `publicaciones_dof`, `leer_nota_dof`, `indicadores_dof`; then `novedades_listas`, `revisar_proveedores`, `verificar_cfdi`.
+3. **DOF ingest**, merged into the same events and notices as the lists. It moves the DOF tools onto SQLite, adds `dof_leer_nota` and the topic tags; then `novedades_listas`, `revisar_proveedores`, `verificar_cfdi`.
 4. **Package as a Claude plugin** and test it on one machine, then on two or three at the firm. Not designed yet.
 5. **Phase 2 topics**, in the order the office needs them.
 
@@ -390,13 +389,14 @@ Fixtures must be the bytes as downloaded. The CSV files already in `docs/` are c
 
 Taken on 13 November:
 
-- **Deduplication before any tool.** Exact duplicates in lists without a key are collapsed into one record with a count.
+- **Deduplication before any list tool.** Exact duplicates in lists without a key are collapsed into one record with a count. On 17 November this was narrowed from "any tool": the DOF tools went live first, with no ingest in front.
 - **Different RFCs are never linked or flagged**, however similar.
-- **Working language is English**; tool names, list names and column names stay in Spanish.
+- **Working language is English**; tool names, list names and column names stay in Spanish. On 17 November English was extended to tool titles, descriptions and messages, which had been in Spanish.
 
 Taken on 17 November:
 
 - **Delivery is a Claude plugin with a local stdio server.** Hosting comes later, if at all.
+- **List tools take the prefix `sat_`**, as the DOF tools take `dof_`.
 
 Still open:
 

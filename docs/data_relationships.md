@@ -107,9 +107,7 @@ A notice is a batch: 184 presumption notices (median 41 taxpayers each, up to 46
 - `/diarios/porFecha/{date}` gives the editions of a day (morning, evening, extraordinary), each with a `codDiario`.
 - `/notas/{date}` gives the notes in three arrays, one per edition. The edition is implied by the array; the list has no `codEdicion` field.
 - `/diarios/{year}` returns only evening editions (90 rows for 2026; *re-checked*). It is not a calendar of publication days.
-- The same field name means different things in the two responses: in the list, `codOrgaUno` is a code (`PE`, `OA`…) and `nombreCodOrgaUno` is the name; in the detail, `codOrgaUno` holds the name.
 - 6–17% of notes per day have no `titulo` and no body. They are headings for a group of notes (*inference*), not documents.
-- Empty values arrive in three forms: missing key, the string `"null"`, and JSON null.
 
 ### 5. Indicator ↔ Banco de México note
 
@@ -123,7 +121,7 @@ A notice is a batch: 184 presumption notices (median 41 taxpayers each, up to 46
 | 165, 166, 174 | TIIE at 28, 91, 182 days | `"6.7559%"` | Each publication day |
 | 175 | Funding TIIE | `"6.50%"` | Each publication day |
 
-No endpoint returns indicator names; the mapping above was confirmed by equal values on 09-10 and 12-11-2026. The exchange rate and TIIE are keyed by the DOF publication date (the 09-10 value was set on 8 October); UDI is keyed by the day it applies to. `/indicadores/{code}/{from}/{to}` is inclusive and returned 6,757 rows for the exchange rate back to 05-09-2006.
+Every code, with its name and unit, is in `mcp/src/dof/indicators.ts`. Codes 160 to 162 are monthly too, and 176 to 182 had no value between 15-09-2026 and 17-12-2026. The mapping above was confirmed by equal values on 09-10 and 12-11-2026. The exchange rate and TIIE are keyed by the DOF publication date (the 09-10 value was set on 8 October); UDI is keyed by the day it applies to.
 
 ### 6. Other recurring DOF notices with reference values
 

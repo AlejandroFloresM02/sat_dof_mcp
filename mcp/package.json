@@ -1,6 +1,6 @@
 {
   "name": "mcp",
-  "module": "index.ts",
+  "module": "src/index.ts",
   "type": "module",
   "private": true,
   "packageManager": "bun@1.4.4",
@@ -9,12 +9,21 @@
   },
   "scripts": {
     "preinstall": "bun -e \"if (!Bun.semver.satisfies(Bun.version, '>=1.4.4')) { console.error('This project needs Bun 1.4.4 or later. Found ' + Bun.version + '.'); process.exit(1) }\"",
-    "typecheck": "bun check"
+    "start": "bun run src/index.ts",
+    "test": "bun test",
+    "typecheck": "bun check",
+    "capture:dof": "bun run scripts/capture_dof_fixtures.ts",
+    "smoke:dof": "bun run scripts/smoke_dof.ts"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
     "@types/bun": "^1.4.4"
   },
   "peerDependencies": {
     "typescript": "^7"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
   }
 }

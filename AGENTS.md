@@ -4,7 +4,13 @@ A Claude plugin whose MCP server answers from Mexican public tax data: SAT taxpa
 
 ## Scope of this file
 
-Environment only: runtime, layout and standing rules. Project status, decisions and history belong in `docs/`, which is the record. Save to agent memory only what fits this same scope.
+Environment only: runtime, layout and standing rules. Save to agent memory only what fits this same scope.
+
+## Source of truth
+
+- The code is the only description of what is built. Do not restate it in `docs/` or in comments.
+- `docs/` holds what the code cannot: plans for what is not built, open decisions and measurements of the sources. When something is built, remove its description from `docs/`.
+- Keep a comment only when no name, type or test states the fact and a maintainer would get it wrong without it.
 
 ## Runtime
 
@@ -15,7 +21,7 @@ Environment only: runtime, layout and standing rules. Project status, decisions 
 ## Layout
 
 - `mcp/`: server code.
-- `docs/`: design and source reference. Read `docs/design_connector.md` first.
+- `docs/`: plans and source reference for what is not built yet. Read `docs/design_connector.md` first.
 - `docs/sat_listas_*/`: SAT list snapshots. Git tracks only each `manifest.json`.
 
 ## Data guard
@@ -24,4 +30,6 @@ Leave every untracked file under `docs/sat_listas_*/` in place and out of commit
 
 ## Language
 
-English prose. Tool names, list names and column names stay in Spanish, as the sources write them.
+English prose, including what the agent reads from the server: tool titles, descriptions, hints and error messages.
+
+Spanish stays for tool, parameter, list and column names, for terms that exist only in Spanish, for the disclaimer shown to users and for examples of search text.

@@ -2,7 +2,7 @@
 
 What each public source serves, how it behaves over HTTP, and how often it changes. Companions: [design_connector.md](design_connector.md) (what is built on these sources), [data_relationships.md](data_relationships.md) (how the sources join), [glossary.md](glossary.md) (legal meaning of the terms).
 
-**Measurement dates.** Figures come from two sessions: 25 October 2026 (the 22 lists, the DOF notes of 2026, speeds) and 13 November 2026 (re-probes with `curl`, DOF editions and indicators). Each section states its date. The lists change every few weeks, so counts describe the snapshot of 25 October unless stated otherwise.
+**Measurement dates.** Figures come from three sessions: 25 October 2026 (the 22 lists, the DOF notes of 2026, speeds), 13 November 2026 (re-probes with `curl`, DOF editions and indicators) and 17 November 2026 (the DOF routes). Each section states its date. The lists change every few weeks, so counts describe the snapshot of 25 October unless stated otherwise.
 
 ## SAT taxpayer lists
 
@@ -181,19 +181,20 @@ A read-only REST API (GET, JSON) with no authentication. The official documentat
 
 It is the only verified source for article 49 Bis, which has no CSV on the SAT open-data page.
 
-Prefix: `https://sidof.segob.gob.mx/dof/sidof`
+The routes the server calls are in `mcp/src/dof/client.ts` and their response shapes in `mcp/src/dof/schemas.ts`. `mcp/test/fixtures/dof/manifest.json` lists one recorded response per case with the address that produced it, so `curl` on any `url` there shows the live payload. This section keeps what that code does not hold: the routes not used yet and the measurements the DOF ingest will need.
 
-| Service | Endpoint | Parameters | Tested |
-| --- | --- | --- | --- |
-| Notes by date | `/notas/{fecha}` | `DD-MM-YYYY` | 25 October |
-| Note by code | `/notas/nota/{codNota}` | 7 digits | 25 October |
-| Notes by edition | `/notas/obtenerNotasPorDiario/{codDiario}` | 6 digits | No |
-| Editions by date | `/diarios/porFecha/{fecha}` | `DD-MM-YYYY` | 13 November |
-| Editions by year | `/diarios/{año}` | 4 digits | 13 November; returns evening editions only |
-| Edition by date and type | `/diarios/obtieneDiario/{fecha}/{edicion}` | `MAT`, `VES` or `EXT` | No |
-| Word document of a note | `/documentos/doc/{codNota}` | 7 digits | No |
-| PDF of the edition | `/documentos/pdf/{codDiario}` | 6 digits | No |
-| Indicators | `/indicadores/{fecha}` and `/indicadores/{code}/{from}/{to}` ([PDF](https://sidof.segob.gob.mx/datos_abiertos/getPDF/61)) | Date; code and inclusive range | 13 November |
+Routes not used yet, under the prefix `https://sidof.segob.gob.mx/dof/sidof`. Tested on 17 November unless a row says otherwise; none has a recorded response.
+
+| Route | Finding |
+| --- | --- |
+| `/notas/obtenerNotasPorDiario/{codDiario}` | The notes of `/notas/{fecha}` in another shape, with JSON `null` for empty values |
+| `/diarios/{año}` | 13 November. Returns evening editions only, so it is not a calendar. Any other text in place of the year answers 200 with empty lists |
+| `/documentos/doc/{codNota}` | A Word 97 file despite its `.docx` name. A candidate for reading note bodies |
+| `/documentos/pdf/{codDiario}` | The whole edition as PDF; 2.5 MB took 22 s for a 16-page edition |
+| `/organismos/`, `/catalogos/cat_topicos`, `/notasTopicos/{id}` | Issuer tree and topics. `notasTopicos` writes dates as `YYYY/MM/DD` |
+| `/topNotasRecurso/mensual` | Stale since March 2020 |
+| `/buscarNotas/avanzada/…` | Listed on the status page; answered 404 |
+| `https://sidof.segob.gob.mx/apiStatus` (host root; 404 under the prefix) | A static list of routes with dates from 2016 and 2017, not a live status. It lists the two undocumented routes the server uses |
 
 Requests made on 25 October:
 
@@ -202,17 +203,13 @@ Requests made on 25 October:
 - `/notas/nota/5793257` returned the full notice. The text is HTML inside `cadenaContenido`; RFC and name are extracted from it.
 - All 298 dates from 1 January to 25 October: 20,940 notes.
 
-Format and behaviour:
+Measured, and not in the code:
 
-- A successful response carries `messageCode: 200` in its body.
-- Empty fields can arrive as the string `"null"`. `tamanioContenido` is not reliable (0 or 2 for notes with megabytes of content).
 - 2,373 of the 20,940 notes of 2026 (11%) have no `titulo`. A filter on the title does not see them.
-- The API returns no `ETag`, no `Last-Modified` and no compression, and has no "changes since" query. The only way to find new notes is to request the day's date.
-- Editions are morning (`MAT`), evening (`VES`) and extraordinary (`EXT`). The documentation says there is normally no publication on weekends or public holidays.
+- The API has no "changes since" query. The only way to find new notes is to request the day's date.
 - The response carries `Access-Control-Allow-Origin: *` and lists `X-Auth-Token` among the allowed headers, though every call worked without it.
-- The status page `/apiStatus` returned an error.
-- 4 requests in parallel ran without errors over 298 calls. With no documented limit, there is no evidence that more is safe.
-- A list note weighs several megabytes, so a note detail needs a timeout of at least 60 s.
+- Weekend editions exist, against the documentation: Sunday 09-08-2026 has a morning edition. No extraordinary edition was seen.
+- The exchange rate series goes back to 13-11-1991. The UDI has two values on 25-04-2006.
 
 Note 5801999 is a **presumption** notice (171 RFCs). A definitive-list example is note 5792569.
 
@@ -275,7 +272,7 @@ Walking the DOF note lists for all of 2026 took 13 s; the heavy part of a first 
 - **Article 69 data can be more than 3 months old.**
 - **Fragile paths.** Without a container listing, a new or renamed file goes unnoticed unless the page links are compared. Some paths carry a dated folder (for example `AGR/03_02_26/`).
 - **Format without a contract.** Wrong `Content-Type`, Windows-1252 with CP850 fragments in the historic files.
-- **DOF API.** Documentation points to the test host, `/apiStatus` fails, no documented limits, and list notes arrive as large HTML whose structure can change.
+- **DOF API.** Documentation points to the test host, there is no live status page, no documented limits, two of the routes the server uses are undocumented, and list notes arrive as large HTML whose structure can change.
 - **Network.** On 25 October a cloud environment could not reach the SAT storage host, so an office network could block it too.
 
 ## What to watch
