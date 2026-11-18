@@ -1,8 +1,8 @@
 # Glossary of legal terms in the SAT "published taxpayers" lists
 
-> This is a reference for building the connector. It is not legal advice.
+> This is a reference for building the plugin's MCP server. It is not legal advice.
 
-- **Data described:** the 22 CSV files in `docs/sat_listas_utf8_2026-10-25/csv/` (downloaded 25 October 2026).
+- **Data described:** the 22 CSV files in `docs/sat_listas_utf8_2026-10-25/csv/` (downloaded 25 October 2026). Their article 69 files hold the 1 July 2026 batch; on 13 November 2026 the SAT page showed article 69 data "actualizada al 1 de octubre de 2026".
 - **Law checked on 13 November 2026:** Código Fiscal de la Federación (CFF), consolidated text of the Cámara de Diputados, "última reforma publicada DOF 09-04-2026"; Resolución Miscelánea Fiscal (RMF) for 2026 as published in the DOF on 28 December 2025.
 - **"Not verified"** means the statement was not found or not read in a primary source. All such items are repeated in [Not resolved](#not-resolved).
 
@@ -220,12 +220,6 @@ In the text in force until 24 July 2018 the definitive list was in the third par
 | Aclaración | Clarification request | [CFF art. 69][cff-69], last paragraph; [RMF rule 2.9.15][rmf-2915] | The way to contest a publication under art. 69. Decided in 3 days; the SAT also refreshes the published data quarterly | Explains why art. 69 files change four times a year |
 | Opinión del cumplimiento | Compliance opinion | [CFF art. 32-D][cff-32d]; [RMF rule 2.1.36][rmf-2136] | The SAT's statement that a taxpayer is up to date. Among other things it requires no firm or enforceable debts, being located, and not being on the definitive 69-B list or subject to a 49 Bis decision | Out of scope: needs the taxpayer's credentials |
 | AGR, AGAFF, AGGC, AGACE, AGH | SAT general administrations | [RMF 2026 glossary][rmf-glos] | Administración General de Recaudación (collection), de Auditoría Fiscal Federal (federal tax audit), de Grandes Contribuyentes (large taxpayers), de Auditoría de Comercio Exterior (foreign trade audit), de Hidrocarburos (hydrocarbons). The SAT unit that issued the act | `ADMINISTRACION GENERAL RESPONSABLE DE LA CANCELACION`: `AGR` 59,564 · `AGACE` 50 · `AGH` 21 · `AGGC` 1 |
-
-## Clarifications for the other project documents
-
-- DOF note 5801999 is specifically a **presumption** notice ("listado global de presunción"); a definitive-list example is note 5792569.
-- Article 146-B of the CFF was **repealed** in 2021. The *Condonados de concurso mercantil* file is historical.
-- On 13 November 2026 the SAT page shows article 69 data "actualizada al 1 de octubre de 2026". The snapshot in this repository holds the 1 July 2026 batch.
 
 ## Not resolved
 

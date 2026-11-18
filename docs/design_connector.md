@@ -1,28 +1,17 @@
-# SAT/DOF MCP connector: extraction and tool design
+# SAT/DOF MCP server: extraction and tool design
 
-Draft 2 · 13 November 2026 · builds on [reporte_fuentes_y_requerimientos.md](reporte_fuentes_y_requerimientos.md) (25 October) · companions: [data_relationships.md](data_relationships.md), [glossary.md](glossary.md)
+Companions: [sources.md](sources.md) (what each source serves and how it behaves), [data_relationships.md](data_relationships.md), [glossary.md](glossary.md)
 
 ## Summary
 
-Everything the connector needs can be fetched with plain HTTP requests. No browser, no Chrome extension and no manual steps are required, so extraction can be fully programmatic and repeatable.
+Everything the server needs can be fetched with plain HTTP requests. No browser, no Chrome extension and no manual steps are required, so extraction can be fully programmatic and repeatable.
 
-- **The "Excel" problem is two different things.** The 22 taxpayer lists are text CSV files that the server mislabels as Excel. The SAT statistics are real binary Excel files (89 of them), and Bun reads them directly. Both were parsed today inside this repo's stack (Bun + TypeScript) without a browser.
+- **Delivery is a Claude plugin** that bundles this MCP server and runs it on the user's machine over stdio. A hosted server is a later option and is not decided (see the last section). The plugin's own structure is not designed yet.
+- **The "Excel" problem is two different things.** The 22 taxpayer lists are text CSV files that the server mislabels as Excel. The SAT statistics are real binary Excel files (89 of them), and Bun reads them directly. Both were parsed on 13 November with Bun and TypeScript, without a browser.
 - **The data groups into 8 topics**, which map to 14 tools: 9 in a first phase (lists, DOF notes, indicators, CFDI check) and 5 in a second (statistics, charities directory, CFDI catalogs).
 - **The agent never receives duplicated data.** Deduplication runs when data is loaded, in six layers, and nothing is lost: a collapsed record keeps a count and its sources. The October files contain about 26,000 redundant rows and one list whose text is 65% repetition.
-- **Yearly change is handled by a source registry**: one declarative entry per dataset, with file addresses discovered from the SAT index pages instead of written into code. Today's probes already found three addresses that moved or carry a date.
-- **Main risk:** every probe ran from this Mac. The October report notes that a cloud environment could not reach the SAT file storage, so reachability from the real Docker host must be tested before anything else.
-
-## What changed since the October report
-
-The October report stays valid for the list contents, data-quality rules, DOF note endpoints and deployment options. Its requirements for the reverse proxy, TLS, the Anthropic IP allowlist and OAuth still apply unchanged. This document replaces its tool table (7 tools) and widens the scope beyond the 22 lists.
-
-| Topic | October report | Today |
-| --- | --- | --- |
-| How files were fetched | Through Chrome, because the assistant's cloud environment could not reach SAT storage | `curl` from this Mac reaches every source directly |
-| SAT scope | 22 lists on one page | 15 open-data pages: the 22 lists plus 89 Excel files, 20 yearly CSV reports and about 250 PDFs |
-| DOF scope | Notes | Notes, editions and financial indicators (exchange rate, UDIS, TIIE) |
-| List freshness | Snapshot of 25 October | 7 of the 22 lists have changed since. All seven are article 69 lists, re-uploaded on 4 and 12 November |
-| Egress hosts | 3 | 5 required, 2 optional |
+- **Yearly change is handled by a source registry**: one declarative entry per dataset, with file addresses discovered from the SAT index pages instead of written into code. The probes of 13 November found three addresses that moved or carry a date.
+- **Main risk:** every probe ran from one developer machine. A cloud environment could not reach the SAT file storage on 25 October, and an office network could block it too, so reachability from the firm's machines must be tested before anything else.
 
 ## What "deterministic" means here
 
@@ -36,7 +25,9 @@ A parser that meets something it does not expect (a new column, a missing header
 
 ## Sources verified on 13 November 2026
 
-All requests below were made with `curl` from this Mac, without cookies or a browser session. The first pass sent a browser User-Agent header; I then repeated one request per host with `curl`'s default header and with Bun's `fetch`, and got the same responses. No source checks for a browser.
+All requests below were made with `curl` from one developer machine (macOS), without cookies or a browser session. The first pass sent a browser User-Agent header; one request per host was then repeated with `curl`'s default header and with Bun's `fetch`, and the responses were the same. No source checks for a browser.
+
+The SAT scope is 15 open-data pages: the 22 lists plus 89 Excel files, 20 yearly CSV reports and about 250 PDFs. Seven of the 22 lists had changed since the snapshot of 25 October; all seven are article 69 lists, re-uploaded on 4 and 12 November. The server needs to reach 5 hosts, and 2 more are optional.
 
 | Source | Host | Format | Change signal | Measured |
 | --- | --- | --- | --- | --- |
@@ -50,18 +41,20 @@ All requests below were made with `curl` from this Mac, without cookies or a bro
 
 Two optional hosts appear in links: `wu1aqauatsta003.blob.core.windows.net` (3 files) and `www2.sat.gob.mx` (40 PDF reports).
 
-### Checks run in this repo's stack
+### One-off checks with Bun (13 November)
+
+These ran as throwaway scripts. None is in the repository, and `mcp/` does not yet depend on SheetJS, so they cannot be re-run as they stand.
 
 - **Excel in Bun:** the SheetJS library read `IngresosTributarios.xls` (215 rows, numeric cells returned as numbers). No Python sidecar is needed.
 - **Windows-1252 in Bun:** `TextDecoder("windows-1252")` decoded the raw 69-B "Presuntos" file with zero replacement characters, and maps bytes 0x80–0x9F correctly.
 - **Golden comparison:** the raw "Presuntos" file still has the MD5 recorded in the October manifest. Parsing it gave 878 rows with 0 cell differences against `docs/sat_listas_utf8_2026-10-25/csv/sat_69b_presuntos.csv`.
 - **CFDI catalog in Bun:** the 48.8 MB workbook has 28 sheets and parsed in 2.7 s, but the process used about 3.4 GB of memory. A reader that loads one sheet at a time (Python `xlrd`) read all 28 sheets with a peak of about 209 MB, so the cost comes from the library, not the file. Validity dates are present as Excel serial numbers, and the postal-code and neighbourhood catalogs are split across 2 and 3 sheets.
-- **Encoding defect confirmed:** `Condonados_07_15.csv` contains 26 bytes with value 0x90, which Windows-1252 does not define. This matches the CP850 repair the October report describes.
+- **Encoding defect confirmed:** `Condonados_07_15.csv` contains 26 bytes with value 0x90, which Windows-1252 does not define. This matches the CP850 repair described in [sources.md](sources.md#data-quality-problems).
 
 ### Evidence that addresses must not be hardcoded
 
 - The list page links "Sentencias" twice: `AGR/03_02_26/Sentencias.csv` (uploaded 3 February) and `Documents_AGR/Sentencias.csv` (uploaded 4 November). The two files differ.
-- The incumplidos statistics file moved from `AGR/03_02_26/` (October report) to `Documents_AGR/` (today).
+- The incumplidos statistics file moved from `AGR/03_02_26/` (25 October) to `Documents_AGR/` (13 November).
 - The CFDI catalog file carries its date in the name: `catCFDI_V_4_20261106.xls`.
 - The RMF page redirects to `normatividad_rmf_rgce2026.html`, and budget files follow `ProyFinanPEF{year}.xls`.
 - The link texts "Listado completo" and "Definitivos" appear under both 69-B and 69-B Bis, so link text alone does not identify a file.
@@ -75,13 +68,13 @@ Two optional hosts appear in links: `wu1aqauatsta003.blob.core.windows.net` (3 f
 | 3 | Financial indicators | Exchange rate, UDIS and TIIE for a date or range | DOF API, 6 to 7 values per day | 1 |
 | 4 | CFDI status | Is this invoice valid, cancellable, issued by a listed taxpayer | SOAP, live | 1 |
 | 5 | SAT statistical series | Monthly or quarterly figures: taxpayer registry, returns and payments, invoicing, refunds, audits, litigation, collection, tax revenue, surveys | 60 distinct series files in `.xls`, sharing one layout | 2 |
-| 6 | Directories | Is this organisation an authorised charity (donataria), with its RFC, address and authorisation notice | One 19.7 MB `.xls` (16,157 data rows for 10,507 organisations) plus 20 yearly CSV reports (2008–2026). I sampled one report: 1.8 MB, 36 columns of donations, income and expenses per charity | 2 |
+| 6 | Directories | Is this organisation an authorised charity (donataria), with its RFC, address and authorisation notice | One 19.7 MB `.xls` (16,157 data rows for 10,507 organisations) plus 20 yearly CSV reports (2008–2026). One report was sampled: 1.8 MB, 36 columns of donations, income and expenses per charity | 2 |
 | 7 | CFDI reference catalogs | What does a product, regime or usage code mean; is it in force | One 48.8 MB `.xls` with 28 sheets (52,518 rows in the product catalog alone), plus schema files | 2 |
 | 8 | Regulations | Text of the RMF, its amendments and annexes | The DOF API returns only a "download the file" stub for the RMF main text and Anexo 1; other annexes arrive as HTML. Needs the DOF document endpoint or the PDFs on the SAT site, both untested | 3 |
 
 **Catalogued but not ingested for now:** SAT spending projects (14 files), responses to information requests (7 files, 2015–2021), anonymised annual returns 2010–2015 (large archives), and about 250 PDF reports and studies. The registry lists them so a change is noticed, but no parser is written until someone needs them.
 
-**Out of scope:** anything behind taxpayer credentials or a CAPTCHA (compliance opinion 32-D, tax status certificate, bulk RFC validation, tax mailbox). Notifications by "estrados" remain without a verified source, as in October.
+**Out of scope:** anything behind taxpayer credentials or a CAPTCHA (compliance opinion 32-D, tax status certificate, bulk RFC validation, tax mailbox). Notifications by "estrados" have no verified source (see [sources.md](sources.md#not-verified)).
 
 ### Layout count for the Excel files
 
@@ -98,7 +91,7 @@ The charities directory is a fifth layout: 30 preamble rows (title, a legend of 
 
 ## Architecture
 
-One Docker image, two processes, one SQLite file on a volume.
+Two roles and one SQLite file, on the user's machine. How the ingest is started and scheduled there is open (see Risks).
 
 ```mermaid
 flowchart LR
@@ -108,7 +101,7 @@ flowchart LR
     C[DOF API]
     D[CFDI SOAP]
   end
-  subgraph Container
+  subgraph Local["Plugin on the user's machine"]
     R[Source registry] --> I[Ingest worker]
     I --> RAW[(Raw files by hash)]
     I --> DB[(SQLite)]
@@ -123,8 +116,8 @@ flowchart LR
 
 - **Ingest worker:** the only writer. Runs on a schedule and performs seven steps per dataset: discover, fetch, store raw, parse, validate, deduplicate, load.
 - **MCP server:** read-only. Answers from SQLite in milliseconds and keeps working when SAT or DOF are down. Only the CFDI check goes out live.
-- **SQLite instead of PostgreSQL:** the data is small (the 22 lists are 80 MB raw), there is one writer, and Bun has a built-in driver. This removes one container. Name search needs SQLite's full-text index (FTS5). It works in Bun on this Mac; confirm it in the Linux image before committing to this.
-- **Transports:** Streamable HTTP for Claude Enterprise, and stdio for local use and tests, from the same code.
+- **SQLite:** the data is small (the 22 lists are 80 MB raw), the design has one writer, and Bun has a built-in driver. Name search needs SQLite's full-text index (FTS5). It worked in Bun on macOS on 13 November; confirm it on the operating systems the firm uses.
+- **Transport:** stdio for the plugin. Streamable HTTP is added only if the server is hosted later; the tool code is the same.
 
 ### Source registry
 
@@ -155,10 +148,10 @@ The registry is the part that absorbs yearly change. Each dataset is one entry; 
 Discovery compares the links on each index page against the registry and raises three kinds of alert:
 
 - **Missing:** a registered pattern matches no link. The file was renamed or removed.
-- **Ambiguous:** a pattern matches two links, as "Sentencias" does today. The entry must say which one wins.
+- **Ambiguous:** a pattern matches two links, as "Sentencias" did on 13 November. The entry must say which one wins.
 - **Unknown:** a data link matches no entry. This is how a new list (as 49 Bis was in 2026) gets noticed.
 
-**Repairs are declared per dataset.** A repair is a named, versioned correction such as the CP850 fix, applied only to the entries that list it. The October report applied that fix to the two 2007–2015 files and deliberately left source typos such as `ZU¥IGA` untouched. The raw value is always kept beside the repaired one, so a repair can be audited or withdrawn.
+**Repairs are declared per dataset.** A repair is a named, versioned correction such as the CP850 fix, applied only to the entries that list it. The October conversion applied that fix to the two 2007–2015 files and deliberately left source typos such as `ZU¥IGA` untouched. The raw value is always kept beside the repaired one, so a repair can be audited or withdrawn.
 
 ### Ingest pipeline
 
@@ -181,6 +174,8 @@ Discovery compares the links on each index page against the registry and raises 
 | SAT index pages | Hash of the sorted link list | Daily |
 | DOF notes | `/diarios/porFecha/{today}` then `/notas/{today}`; re-read the last 3 days once a day | Every 30 minutes, 06:00–22:00 Mexico City time |
 | DOF indicators | `/indicadores/{date}` | Once a day after the morning edition |
+
+The first DOF load starts at 1 January 2026, the day article 49 Bis came into force.
 
 The intervals are starting values. Hourly polling of the lists is cheap and gives the freshest data the source allows; the DOF has no change signal, so its interval is a trade between freshness and load on an API with no documented limits.
 
@@ -285,7 +280,9 @@ Regulations (topic 8) have no tool yet. `publicaciones_dof` with a topic tag fin
 ### Rules every tool follows
 
 - **Read-only**, and declared as such in the tool annotations.
-- **Provenance in every response:** a `fuente` block with dataset id, source address, download time, declared cutoff date and latest date found in the data. The October report showed that the two dates can differ by more than a week.
+- **Provenance in every response:** a `fuente` block with dataset id, source address, download time, declared cutoff date and latest date found in the data. The two dates can differ by more than a week (see [sources.md](sources.md#data-quality-problems)).
+- **Disclaimer in every response:** the result is information from public lists and does not replace a tax or legal review.
+- **Nothing the user sends is kept:** the RFC lists passed to `revisar_proveedores` are not stored, and logs do not record request content.
 - **Typed input and output schemas**, with results returned as structured data as well as text.
 - **No duplicates:** every record appears once per response, with shared notices and sources referenced by id (see Deduplication).
 - **Amounts and dates as the source means them:** an amount of 0 or blank is "not disclosed", not zero. Article 69 dates are quarterly batch dates, and responses label them as publication dates.
@@ -356,12 +353,21 @@ Fixtures must be the bytes as downloaded. The CSV files already in `docs/` are c
 
 | Item | Status | What to do |
 | --- | --- | --- |
-| Reachability from the deployment host | Not tested; every probe ran from this Mac, and a cloud environment failed in October | Run the `HEAD` and DOF checks from the real server or VPS before building further |
+| Reachability from the firm's machines and network | Not tested; every probe ran from one developer machine, and a cloud environment failed on 25 October | Run the `HEAD` and DOF checks from a firm machine before building further |
+| Ingest ownership on a local machine | A stdio server is one process per Claude session, so several open sessions mean several writers on one SQLite file and several pollers. The design assumes one writer. A stdio server also does not run while Claude is closed, so an hourly check cannot hold | Decide between write-ahead logging plus a single-ingest lock, and ingest as a separate command. Refresh on start when the data is stale |
+| One database per machine | Each user's copy can hold a different snapshot and give a different answer. Polling also multiplies behind one office address, against a DOF API with no documented limits | Decide between a shared prebuilt snapshot and the hosted server |
+| stdio and stdout | A stdio server must never write to stdout; one `console.log` corrupts the protocol stream | Log with `console.error` only |
+| Tool names have no service prefix | Anthropic's MCP guide asks for `{service}_{action}_{resource}`, so names do not collide with other servers | Decide the prefix (for example `sat_buscar_rfc`, `dof_leer_nota`) before the first tool is written |
+| Pagination contract | "Limits and pagination" is stated but not specified | Specify `limit`, `has_more`, `next_offset` and `total_count`, a default of 20 to 50 items, and a cap of about 25,000 characters reached by returning fewer items, never by cutting text |
+| Output keys | Source column names carry accents and spaces, and list-specific fields sit in a free JSON column | Decide ASCII snake_case keys and one declared output shape per list family |
+| MCP SDK | None chosen. The guide's current one is `@modelcontextprotocol/server` (v2) with Zod 4; not tested under Bun | Test it under Bun, then pin it |
+| Evaluations | The design has 3 answer checks. The guide asks for 10 multi-step questions with stable answers | Write them against a pinned fixture database, because the live lists change |
+| `verificar_cfdi` | The only tool that reaches outside at query time; it sends the invoice's UUID, both RFCs and the total to the SAT. Never run against a real invoice | Say so in the tool description and mark it `openWorldHint: true`; test with a real invoice |
 | `omawww.sat.gob.mx` is plain HTTP and slow | Measured | Long timeouts, resumable downloads, own hash; treat content as unauthenticated |
 | Reader for the 48.8 MB CFDI catalog | Measured: about 3.4 GB with SheetJS reading the whole workbook, about 209 MB with a reader that loads one sheet at a time | Choose the reader before phase 2: SheetJS limited to one sheet per pass (untested), or a small Python step in the ingest worker for this file |
 | Charities directory may be stale | The `.xls` was last modified on 25 August 2025 | Check whether the SAT publishes a newer directory elsewhere; report its date in every answer |
 | Yearly charity reports | 1 of 20 files sampled | Confirm the 36 columns are stable across years before writing the profile |
-| SheetJS version | Tested with 0.18.5 from npm. I believe newer releases are distributed only from the vendor's own site; not checked | Confirm, then pin the version |
+| SheetJS version | Tested with 0.18.5 from npm. Newer releases may be distributed only from the vendor's own site; not checked | Confirm, then pin the version |
 | Indicator codes | Confirmed by equal values in the Banco de México notes of two dates: 158 dollar, 159 UDI, 163 cost of funds in dollars (monthly), 165/166/174 TIIE 28/91/182 days, 175 funding TIIE. No endpoint returns the names | Keep the mapping as registry data and re-check it when a new code appears |
 | RMF text | Not available as text in the DOF API for the main resolution and Anexo 1 | Test the DOF document endpoint and the SAT PDFs before promising topic 8 |
 | The SAT file and the DOF can differ | One RFC differs by a digit between note 5801999 and the SAT list | Both are kept as separate records, each with its source |
@@ -374,10 +380,10 @@ Fixtures must be the bytes as downloaded. The CSV files already in `docs/` are c
 
 ## Proposed build order
 
-1. **Reachability test** from the target host (one script, five hosts).
+1. **Reachability test** from a firm machine (one script, five hosts).
 2. **Registry + ingest for the 22 lists**, with raw storage, the deduplication layer and the automatic parser checks. Only then `estado_fuentes`, `buscar_rfc`, `buscar_nombre`. Runs locally over stdio.
 3. **DOF ingest**, merged into the same events and notices as the lists, with `publicaciones_dof`, `leer_nota_dof`, `indicadores_dof`; then `novedades_listas`, `revisar_proveedores`, `verificar_cfdi`.
-4. **Docker image and compose file**, Streamable HTTP, deployment as in the October report (options A, B, C).
+4. **Package as a Claude plugin** and test it on one machine, then on two or three at the firm. Not designed yet.
 5. **Phase 2 topics**, in the order the office needs them.
 
 ## Decisions
@@ -388,9 +394,60 @@ Taken on 13 November:
 - **Different RFCs are never linked or flagged**, however similar.
 - **Working language is English**; tool names, list names and column names stay in Spanish.
 
+Taken on 17 November:
+
+- **Delivery is a Claude plugin with a local stdio server.** Hosting comes later, if at all.
+
 Still open:
 
-
+- **Which Claude apps the firm uses.** This decides where the plugin must install and run.
+- **Plugin structure:** manifest, bundled skills or commands, and how the server is packaged.
+- **How the ingest runs on a local machine**, and whether each machine builds its own database (see Risks).
+- **Reachability from the firm's network:** it gates the first build step.
+- **Which lists the office needs:** all of article 69, including condonations and repatriated investments, or only 69-B, 69-B Bis, 49 Bis and no localizados.
+- **Estrados:** whether the office needs them. They would have to be researched by hand.
 - **Phase 2 priority:** statistics series, charities directory, or CFDI catalogs first? This decides which parser profile is written after the lists.
-- **Deployment host:** still open from October, and it now gates the reachability test.
 - **History:** how long to keep raw downloads and list changes. Storage is small (two sampled lists compressed to 12–16% of their size with gzip), so the default would be to keep everything.
+
+## Later: hosted deployment (not decided)
+
+Nothing in this section is part of the current build. It was recorded on 25 October 2026 from Claude's connector documentation and has not been re-verified since.
+
+A hosted server would give the whole firm one database and one ingest. Claude calls a remote connector from Anthropic's cloud, so a server inside a private office network, behind a VPN or a firewall, does not connect unless the Anthropic egress range `160.79.104.0/21` is allowed in ([Claude · custom connectors](https://support.claude.com/en/articles/11175166), [Anthropic IP addresses](https://platform.claude.com/docs/en/api/ip-addresses)).
+
+| Option | Network requirement | When to choose it |
+| --- | --- | --- |
+| A. Server in the office, exposed with an allowlist | Inbound HTTPS on a public domain, accepting only `160.79.104.0/21` | The office controls its firewall and can open port 443 |
+| B. Server outside the office (VPS or cloud) | None at the office | The office cannot open inbound traffic; the data is public anyway |
+
+The same Docker image would serve A and B.
+
+**What Claude requires of a remote connector** ([building custom connectors](https://support.claude.com/en/articles/11503834)):
+
+- **Transport:** Streamable HTTP. SSE is accepted but may stop being supported.
+- **Authorisation:** OAuth with dynamic client registration, or an own client ID and secret, against the firm's identity provider. The 26/03 and 18/06 revisions of the authorisation specification are supported. Tokens must expire and refresh. Callback to allow: `https://claude.ai/api/mcp/auth_callback`; it may move to a `claude.com` domain, so allow both.
+- **Without OAuth:** a fixed credential sent as a header. On Team and Enterprise plans every user shares it, so it must carry minimal permissions.
+- **Who adds it:** Owners, Primary Owners or a custom role with the *Manage access to Libraries* permission. Each member then connects their own account.
+- **Capabilities:** tools, prompts and resources. Sampling and resource subscriptions are not supported.
+- **Changes:** editing a connector means removing and re-adding it, so the server address must be stable.
+
+**Infrastructure:**
+
+- A multi-architecture image (`linux/amd64` and `linux/arm64`) until the server is known.
+- `docker compose` with services `mcp`, `ingesta` and `proxy`, a volume for the SQLite file and one for certificates, and a healthcheck per service. The October sketch also had a `db` service; SQLite removes it.
+- Configuration through environment variables; secrets outside the image.
+- A subdomain and a public TLS certificate.
+- CPU, memory and disk were not measured.
+
+**Security and operation that only apply when hosted:**
+
+- The reverse proxy terminates TLS, applies the allowlist and a per-user request limit. Anthropic's page also lists 5 older addresses that are no longer used and should not be in any allowlist.
+- A health endpoint and structured logs.
+- An alert when an ingest fails or a source's cutoff date stops advancing.
+- A database backup, and versioned images with a changelog.
+
+**Questions for the office, if this is taken up:**
+
+- What server do they have: operating system, CPU architecture, whether it already runs Docker, free memory and disk?
+- Can they publish a subdomain with inbound HTTPS limited to `160.79.104.0/21`, and who administers the firewall?
+- Which identity provider do they use for OAuth (for example Microsoft Entra ID or Google Workspace)?

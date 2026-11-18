@@ -1,6 +1,6 @@
 # Data relationships and how to read them
 
-13 November 2026 · companion to [design_connector.md](design_connector.md) · legal meaning of the terms: [glossary.md](glossary.md)
+13 November 2026 · companion to [design_connector.md](design_connector.md) · what each source serves: [sources.md](sources.md) · legal meaning of the terms: [glossary.md](glossary.md)
 
 This document records what each source row represents, how the sources join, and the exact steps to read each relationship. The data model and the tool outputs in the design follow from it.
 
@@ -52,7 +52,7 @@ How to read it:
 
 Three things to know:
 
-- **The SAT page publishes first; only the file's DOF columns lag.** A notice appears on the SAT page weeks before the DOF prints it: a median of 21 to 27 days over all years, and 53 to 63 days in 2026 according to the October report. Once the DOF does print it, the DOF date reaches the SAT file only at the next re-upload. In the October file, 171 presumption rows, 92 definitive rows and 10 favourable-ruling rows have a SAT page date and an empty DOF date; the 171 are note 5801999, published on 23 October. The DOF ingest can supply those dates sooner.
+- **The SAT page publishes first; only the file's DOF columns lag.** A notice appears on the SAT page weeks before the DOF prints it: a median of 21 to 27 days over all years, and 53 to 63 days in 2026 (see [sources.md](sources.md#publication-cadence)). Once the DOF does print it, the DOF date reaches the SAT file only at the next re-upload. In the October file, 171 presumption rows, 92 definitive rows and 10 favourable-ruling rows have a SAT page date and an empty DOF date; the 171 are note 5801999, published on 23 October. The DOF ingest can supply those dates sooner.
 - **The SAT and DOF notice numbers of one row can differ.** They agree in about 98% of cells. The rest are notices re-issued in the DOF under a new number (seen for 2014 and 2020–21).
 - **The sources can differ on an RFC.** Note 5801999 prints `HEAP5602278N7`; the CSV has `HEAP5602078N7` for the same position in the list (*re-checked*). Under the deduplication rules of the design these are two distinct records and nothing links them.
 
